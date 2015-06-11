@@ -1,0 +1,269 @@
+
+The Sunday Drink Protocol
+Version: $Id: SundayProtocol.txt,v 1.4 2000/12/08 21:30:16 grahams Exp $
+
+This document is maintained by Sean Graham <grahams@csh.rit.edu>
+Original Protocol written by Joe Sunday <sunday@csh.rit.edu>
+
+Last Updated: $Date: 2000/12/08 21:30:16 $
+
+==========================================================================
+
+Introduction:
+
+The Sunday Drink Protocol is a SMTP-like interface to the CSH Drink machine.
+It was originally designed (quickly) by Joe Sunday in Fall 1999 when he
+rebuilt the drink hardware and wrote his own server to drive his hardware.
+While this new protocol was incompatible (and less feature-rich) than the
+existing protocol, many clients were written that support this protocol.
+
+When (yet-again) rebuilding and redesigning the drink hardware and software
+in fall of 2000, the team decided to support both protocols for the most
+compatibility.  In the process of writing the SundayServer class, we found
+some areas in which the Sunday protocol could be strengthened.
+
+(Note: We are still looking for adequate documentation of the 'classic'
+drink protocol, so we currently only support the Sunday protocol.)
+
+==========================================================================
+
+Convention:
+    
+In this document, lines sent from the client to the server shall begin
+with a : as follows:
+
+:DROP 5 50
+
+Lines sent from the server to the client shall begin with a > as follows:
+
+>OK Credits remaining: 500
+
+Either of these symbols in the first column of a line are there for clarity,
+and are not actually part of the protocol (and therefore, do not include
+them in your implementation).
+
+==========================================================================
+
+Connection Details:
+
+A Sunday Protocol Server listens for TCP connections on port 4242.  As a
+connection to the server is made, the server sends one line (referred to as
+the 'banner') which the client can either discard or use in any way it sees
+fit.  The server then waits for a command, and upon receiving a command,
+will process it, respond, and wait for another command.
+
+The socket connection will timeout after a minute of inactivity.
+
+==========================================================================
+
+Server Command/Response Pairs:
+
+There are several client commands.  Each command is on a separate line, and
+if the command accepts arguments, the arguments are space-delimited.  
+
+Example:
+:USER grahams
+
+When a command is sent to the server, the client should then wait for a
+response from the server.  This response is a single line, either beginning
+with OK (to indicate success) or ERR (to indicate failure), followed by a
+single space which is in turn followed by a brief description of the error
+(sometimes containing state information).
+
+If the response is multi-line (as in the case of STAT), the status message
+is included as the last line, and can be used to indicate the end of the
+response.
+
+Example:
+>OK Credits remaining: 500
+
+The above example is returned after the PASS command, and the response also
+includes this user's balance
+
+>ERR Invalid slot number.
+
+The above example is returned if the client specified a drop on a
+non-existent slot.
+
+
+==========================================================================
+
+Commands:
+
+USER <username>
+    - Specifies a username, beginning the login process.  If a user was
+      already logged in, it invalidates the current user.
+
+Server response:
+
+This command returns one status message:
+>OK Password required.
+
+While you might expect to get an error if the username does not exist in the
+system, but this is a potential security hole (allowing a nefarious person
+to determine which usernames are valid).  Therefore, this command can not be
+used to simply determine if the user is a valid user.  The only way to
+determine this through the system is using the PASS command.
+
+--------------------------------------------------------------------------
+
+PASS <password>
+    - Specifies a password, which can only be successful when issued after
+      the USER command.  The password is (unfortunately) transmitted in
+      plain-text, and the server response will indicate the user balance if
+      successful.
+
+Server responses:
+>OK Credits: <balance>
+<balance> is an integer representing the user's balance.  This response
+should be interpreted as a successful login.
+
+>ERR Invalid username or password.
+Indicates that either the username or password supplied is invalid.  
+
+>ERR USER command needs to be issued first.
+This response will be generated if the USER command was not issued
+before PASS was issued.
+
+--------------------------------------------------------------------------
+
+STAT
+    - Requests the contents of the machines slot(s).  Does not require a
+      user to be logged in.
+
+Server responses:
+>0 Coke 50 13 200
+>1 Dew 50 15 199
+>OK 2 Slots retrieved.
+
+Each line contains the stats for one slot.  The fields are space-delimited,
+and their contents are as follows:
+
+<Slot Number> <Contents> <Cost> <Number Available> <Total Number Dropped>
+
+NOTE: Contents is only a single word.
+
+The final line from the server is a typical status message, and it is in the
+form:
+>OK <n> Slots retrieved
+
+n is the number of slots retrieved.
+
+--------------------------------------------------------------------------
+
+DROP <slot number> <delay>
+    - Requests an actual drop from the machine.  The client is disconnected
+      following this command (to ensure that someone doesn't hog the machine
+      in the case of a single-threaded server).
+
+      slot number - the number of the slot you wish to drop from
+      delay - the number of seconds you wish to wait before the drop occurs
+              (defaults to 0 if this argument is not given)
+
+NOTE: The initial version of this protocol did not have the delay argument.
+      That version of the protocol is now DEPRECATED.  The reasoning behind
+      this is that if the client implements the delay, the server cannot,
+      for instance, show a countdown on an LCD panel.  The client can always
+      countdown on it's end (with decent accuracy).
+
+Server responses:
+>OK Credits remaining: <n>
+
+Indicates that the drop was successful and also returns the user's new balance
+
+>ERR You need to login.
+
+The USER and PASS commands have to be successfully issued before DROP can be
+called.
+
+>ERR Drop failed, contact an admin.
+
+Indicates that there was a failure in dropping the drink, which is generally
+a bad thing
+
+>ERR Slot empty.
+
+Indicates that the requested slot is empty
+
+>ERR User is poor.
+
+Indicates that the user's balance is not enough to purchase the drink
+contained in this slot
+
+>ERR Invalid slot number.
+
+Indicates that the supplied slot number is not valid in the machine.
+
+--------------------------------------------------------------------------
+
+EDITUSER <username> <credits> <admin>
+    - If the user is an Drink Admin, this command can be used to edit
+      another user's account information.  If the EDITUSER command is issued
+      without ANY arguments, it will simply return whether or not the user
+      is an Admin
+
+      username  - the username of the user to edit
+      credits   - the number of credits to add to the user's account
+      admin     - (optional) "true" if the user to make the user a Drink 
+                  admin, "false" to unmake the user a Drink admin.
+    
+      NOTE:  While there is nothing wrong with using this command to edit a
+             user's balance, it can be somewhat limiting.  First of all, if
+             you wish to decrease a user's balance, you have to pass a 
+             negative value.  
+
+             Second, this command will NOT create a user if they don't 
+             already exist in the system.  
+    
+             It is recommended that Admin's use the normal interface if they
+             need to edit user data, but EDITUSER is provided here for
+             completeness
+    
+Server responses:
+
+>OK Admin user.
+
+If EDITUSER is issued without arguments, this response indicates that the
+current user is, indeed, an Admin user.
+
+>ERR Access denied.
+
+The current user is not an Admin (or is not logged in).
+
+>OK Changes saved.
+
+The requested change has been saved into the user database
+
+>ERR Invalid user.
+
+The user tried to edit a non-existent user (at least, non-existent to the
+drink machine).
+--------------------------------------------------------------------------
+
+EDITSLOT <slotnum> <name> <cost> <quantity> <num_dropped>
+    - If the user is an Drink Admin, this command can be used to edit
+      a single slot in the drink machine.  All arguments are required.
+
+      slotnum       - The number (0-N) of the slot you wish to edit
+      name          - A single-word description of the drink in this slot
+      cost          - The cost of the drink in this slot, in Wonder Wubbas.
+      quantity      - The number of drinks contained in this slot
+      num_dropped   - Change the "Total Dropped" accumulator for this slot
+                      (Generally simply reset back to '0'
+    
+Server responses:
+
+>ERR Access denied.
+
+The current user is not an Admin (or is not logged in).
+
+>OK Changes saved.
+
+The requested change has been saved into the user database
+
+>ERR Invalid slot.
+
+The user tried to edit a non-existent slot (at least, non-existent to the
+drink machine).
+
+==========================================================================

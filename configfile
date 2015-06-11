@@ -1,0 +1,56 @@
+version		DrinkV1.0
+
+slots		7
+bus		serial1
+
+0name		Coke
+0cans		50
+0dropped	18
+0drop		FD0000000E0D1905
+0light 		hjlk
+0button		asd
+0temp0		DB0000000C7ED428
+0temp1		D70000000CCC2228
+0temp2		B80000000D93E528
+
+1name		Pepsi
+1cans		6 
+1dropped	8
+1drop		670000000E078005
+1light		asdf
+1button		620000000E040805
+
+2name		CherryCoke  
+2cans		48
+2dropped	0
+2drop		8D0000000E061905
+2light		asdf
+2button		dfgh
+
+3name		Jolt!
+3cans		48
+3dropped	0
+3drop		690000000DFF6105
+3light		hjkl
+3button		ghjk
+
+4name		A&W_Rootbeer
+4cans		48
+4dropped	0
+4drop		AB0000000E014A05
+4light		qwerty
+4button		zxcv
+
+5name		Dew
+5cans		7
+5dropped	9
+5drop		9A0000000E017E05
+5light		tyui
+5button		tyup
+
+6name	    	Coke
+6cans		32
+6dropped	0
+6drop		C00000000E03D905
+6light		ert
+6button		foo
